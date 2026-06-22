@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>我的仪表板 - Share Hub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+        }
+        .nav {
+            background: white;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            text-decoration: none;
+            color: #333;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        }
+        .nav a.active {
+            background: #667eea;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .form-group small {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: #999;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .btn-danger {
+            background: #e53e3e;
+        }
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+        .btn-secondary {
+            background: #666;
+        }
+        .site-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .site-table th, .site-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .status-active { color: #38a169; }
+        .status-disabled { color: #e53e3e; }
+        .status-banned { color: #e53e3e; font-weight: bold; }
+        .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+        }
+        .float-buttons {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .float-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            text-decoration: none;
+            font-size: 1.25rem;
+        }
+        .float-btn.home { background: #38a169; }
+        .float-btn.share { background: #667eea; }
+        .check-result {
+            margin-top: 5px;
+            font-size: 12px;
+        }
+        .check-result.available { color: #38a169; }
+        .check-result.unavailable { color: #e53e3e; }
+        @media (max-width: 768px) {
+            .site-table th, .site-table td {
+                padding: 0.5rem;
+                font-size: 0.875rem;
+            }
+            .actions { flex-direction: column; }
+        }
+        .port-forward-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid #e0e0e0;
+        }
+        .port-forward-item a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .port-forward-item a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📁 Share Hub 仪表板</h1>
+        <p>欢迎回来，{{ user.nickname }}</p>
+    </div>
+    <div class="nav">
+        <a href="/dashboard" class="active">我的网站</a>
+        <a href="/" target="_blank">浏览广场</a>
+        <a href="/logout">退出登录</a>
+    </div>
+    <div class="container">
+        <!-- 子域名注册卡片 -->
+        <div class="card">
+            <h3>注册新子域名</h3>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label>子域名 *</label>
+                    <input type="text" id="subdomain" placeholder="例如: myblog" required>
+                    <small>.share.free-hub.cn</small>
+                    <span id="subdomainCheckResult" class="check-result"></span>
+                </div>
+                <div class="form-group">
+                    <label>目标域名 *</label>
+                    <input type="text" id="targetDomain" placeholder="https://example.com 或 http://192.168.1.100:8080" required>
+                    <small>支持 http:// 或 https:// 开头的完整URL，用户访问时会通过 iframe 嵌入显示</small>
+                </div>
+                <div class="form-group">
+                    <label>网站名称</label>
+                    <input type="text" id="siteName" placeholder="我的个人网站">
+                </div>
+                <div class="form-group">
+                    <label>网站简介</label>
+                    <textarea id="siteDescription" rows="3" placeholder="简单介绍一下你的网站..."></textarea>
+                </div>
+                <button type="submit" class="btn">注册子域名</button>
+            </form>
+        </div>
+        
+        <!-- 端口转发卡片 -->
+        <div class="card">
+            <h3>🔌 端口转发 (IDE 内网穿透)</h3>
+            <p style="color: #666; margin-bottom: 1rem;">将 IDE 容器内运行的 Web 应用暴露到公网</p>
+            
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" id="forwardProjectInput" placeholder="例如: website" value="website">
+                <small>你创建的项目名称（与 IDE 中一致）</small>
+            </div>
+            
+            <div class="form-group">
+                <label>容器端口</label>
+                <input type="number" id="forwardPort" placeholder="例如: 5000" min="1" max="65535">
+                <small>Web 应用监听的端口（Flask 默认 5000，Node.js 默认 3000）</small>
+                <div id="portCheckResult"></div>
+            </div>
+            
+            <button onclick="createPortForward()" class="btn">创建端口转发</button>
+            <button onclick="manualCleanup()" class="btn btn-secondary" style="margin-left: 10px;">🧹 清理无效转发</button>
+            
+            <div style="margin-top: 1.5rem;">
+                <h4>我的转发列表</h4>
+                <div id="forwardList" style="margin-top: 0.5rem;">
+                    <div style="text-align: center; color: #999; padding: 1rem;">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 我的子域名卡片 -->
+        <div class="card">
+            <h3>我的子域名</h3>
+            <table class="site-table">
+                <thead>
+                    <tr>
+                        <th>子域名</th>
+                        <th>网站名称</th>
+                        <th>目标域名</th>
+                        <th>状态</th>
+                        <th>举报次数</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="sitesList">
+                    <tr><td colspan="6">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 编辑弹窗 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3>编辑子域名</h3>
+            <input type="hidden" id="editId">
+            <div class="form-group">
+                <label>网站名称</label>
+                <input type="text" id="editSiteName">
+            </div>
+            <div class="form-group">
+                <label>网站简介</label>
+                <textarea id="editSiteDescription" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>目标域名</label>
+                <input type="text" id="editTargetDomain" placeholder="https://example.com">
+                <small>修改后立即生效</small>
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button onclick="closeModal()" class="btn">取消</button>
+                <button onclick="saveEdit()" class="btn">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 悬浮按钮 -->
+    <div class="float-buttons">
+        <a href="https://free-hub.cn" class="float-btn home" title="回到主站">🏠</a>
+        <a href="/" class="float-btn share" title="Share分站">📁</a>
+    </div>
+    
+    <script>
+        // ========== 子域名检查 ==========
+        const subdomainInput = document.getElementById('subdomain');
+        const checkResult = document.getElementById('subdomainCheckResult');
+        let checkTimeout = null;
+        
+        if (subdomainInput) {
+            subdomainInput.addEventListener('input', function() {
+                const subdomain = this.value.trim().toLowerCase();
+                if (subdomain.length < 2) {
+                    checkResult.innerHTML = '';
+                    checkResult.className = 'check-result';
+                    return;
+                }
+                
+                if (checkTimeout) clearTimeout(checkTimeout);
+                checkTimeout = setTimeout(async () => {
+                    try {
+                        const resp = await fetch(`/api/subdomains/check?subdomain=${subdomain}`);
+                        const data = await resp.json();
+                        if (data.available) {
+                            checkResult.innerHTML = '✅ 可用';
+                            checkResult.className = 'check-result available';
+                        } else {
+                            checkResult.innerHTML = '❌ ' + (data.error || '不可用');
+                            checkResult.className = 'check-result unavailable';
+                        }
+                    } catch (err) {
+                        checkResult.innerHTML = '⚠️ 检查失败';
+                        checkResult.className = 'check-result unavailable';
+                    }
+                }, 500);
+            });
+        }
+        
+        // ========== 端口转发相关函数 ==========
+        
+        let portCheckTimeout;
+        const forwardPort = document.getElementById('forwardPort');
+        if (forwardPort) {
+            forwardPort.addEventListener('input', function() {
+                if (portCheckTimeout) clearTimeout(portCheckTimeout);
+                portCheckTimeout = setTimeout(checkPort, 500);
+            });
+        }
+        
+        async function checkPort() {
+            const projectName = document.getElementById('forwardProjectInput').value;
+            const port = document.getElementById('forwardPort').value;
+            
+            if (!projectName || !port || port < 1 || port > 65535) {
+                document.getElementById('portCheckResult').innerHTML = '';
+                return;
+            }
+            
+            const resultDiv = document.getElementById('portCheckResult');
+            resultDiv.innerHTML = '⏳ 检查中...';
+            resultDiv.className = 'check-result';
+            
+            try {
+                const resp = await fetch('/api/port-forwards/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_name: projectName, port: parseInt(port) })
+                });
+                const data = await resp.json();
+                if (data.listening) {
+                    resultDiv.innerHTML = '✅ 端口正在监听，可以创建转发';
+                    resultDiv.className = 'check-result available';
+                } else if (data.success) {
+                    resultDiv.innerHTML = '⚠️ ' + data.message;
+                    resultDiv.className = 'check-result unavailable';
+                } else {
+                    resultDiv.innerHTML = '❌ ' + (data.error || '检查失败');
+                    resultDiv.className = 'check-result unavailable';
+                }
+            } catch (err) {
+                resultDiv.innerHTML = '⚠️ 检查失败: ' + err.message;
+                resultDiv.className = 'check-result unavailable';
+            }
+        }
+        
+        async function createPortForward() {
+            const projectName = document.getElementById('forwardProjectInput').value;
+            const port = document.getElementById('forwardPort').value;
+            
+            if (!projectName) {
+                alert('请输入项目名称');
+                return;
+            }
+            if (!port) {
+                alert('请输入端口号');
+                return;
+            }
+            
+            try {
+                const resp = await fetch('/api/port-forwards', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_name: projectName, port: parseInt(port) })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    alert(`创建成功！\n访问地址: ${data.data.access_url}`);
+                    document.getElementById('forwardPort').value = '';
+                    document.getElementById('portCheckResult').innerHTML = '';
+                    loadPortForwards();
+                } else {
+                    alert('创建失败: ' + data.error);
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+            }
+        }
+        
+        async function loadPortForwards() {
+            try {
+                const resp = await fetch('/api/port-forwards');
+                const data = await resp.json();
+                const container = document.getElementById('forwardList');
+                if (data.success) {
+                    if (data.data.length === 0) {
+                        container.innerHTML = '<div style="text-align: center; color: #999; padding: 1rem;">暂无端口转发</div>';
+                        return;
+                    }
+                    container.innerHTML = data.data.map(f => `
+                        <div class="port-forward-item" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <strong>🔗 <a href="${f.access_url}" target="_blank">${escapeHtml(f.subdomain)}.share.free-hub.cn</a></strong>
+                                <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                    项目: ${escapeHtml(f.project_name)} | 端口: ${f.container_port}
+                                </div>
+                            </div>
+                            <div>
+                                <span class="status-active">● ${f.status}</span>
+                                <button class="btn-sm btn-danger" onclick="deletePortForward(${f.id})" style="margin-left: 10px;">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('forwardList').innerHTML = '<div style="text-align: center; color: #999; padding: 1rem;">加载失败</div>';
+            }
+        }
+        
+        async function deletePortForward(id) {
+            if (!confirm('确定要删除这个端口转发吗？')) return;
+            try {
+                const resp = await fetch(`/api/port-forwards/${id}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    alert('删除成功');
+                    loadPortForwards();
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+            }
+        }
+        
+        async function manualCleanup() {
+            try {
+                const resp = await fetch('/api/port-forwards/cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    alert(data.message);
+                    loadPortForwards();
+                } else {
+                    alert('清理失败: ' + data.error);
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+            }
+        }
+        
+        // ========== 子域名管理函数 ==========
+        
+        async function loadSites() {
+            try {
+                const resp = await fetch('/api/subdomains');
+                const data = await resp.json();
+                const tbody = document.getElementById('sitesList');
+                if (data.success) {
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6">暂无子域名，快去注册一个吧！</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.data.map(site => {
+                        let statusClass = 'status-active';
+                        let statusText = '启用';
+                        if (site.is_banned) {
+                            statusClass = 'status-banned';
+                            statusText = '已封禁';
+                        } else if (site.status === 'disabled') {
+                            statusClass = 'status-disabled';
+                            statusText = '已禁用';
+                        }
+                        return `
+                            <tr>
+                                <td><strong>${escapeHtml(site.subdomain)}</strong><br><small>${site.full_domain}</small></td>
+                                <td>${escapeHtml(site.site_name || '-')}</td>
+                                <td>${escapeHtml(site.target_domain || '-')}</td>
+                                <td class="${statusClass}">${statusText}</td>
+                                <td>${site.report_count || 0}</td>
+                                <td class="actions">
+                                    ${!site.is_banned ? `<button class="btn btn-sm" onclick="editSite(${site.id})">编辑</button>` : ''}
+                                    <button class="btn btn-sm btn-danger" onclick="deleteSite(${site.id})">删除</button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('sitesList').innerHTML = '<tr><td colspan="6">加载失败，请刷新重试</td></tr>';
+            }
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 注册表单提交
+        const registerForm = document.getElementById('registerForm');
+        if (registerForm) {
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const subdomain = document.getElementById('subdomain').value.trim().toLowerCase();
+                const targetDomain = document.getElementById('targetDomain').value.trim();
+                const siteName = document.getElementById('siteName').value.trim();
+                const siteDescription = document.getElementById('siteDescription').value.trim();
+                
+                if (!subdomain) {
+                    alert('请输入子域名');
+                    return;
+                }
+                if (!targetDomain) {
+                    alert('请输入目标域名');
+                    return;
+                }
+                if (!targetDomain.startsWith('http://') && !targetDomain.startsWith('https://')) {
+                    alert('目标域名必须以 http:// 或 https:// 开头');
+                    return;
+                }
+                
+                const data = {
+                    subdomain: subdomain,
+                    target_domain: targetDomain,
+                    site_name: siteName,
+                    site_description: siteDescription
+                };
+                
+                try {
+                    const resp = await fetch('/api/subdomains', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const result = await resp.json();
+                    if (result.success) {
+                        alert('注册成功！');
+                        document.getElementById('registerForm').reset();
+                        if (checkResult) {
+                            checkResult.innerHTML = '';
+                            checkResult.className = 'check-result';
+                        }
+                        loadSites();
+                    } else {
+                        alert('注册失败: ' + result.error);
+                    }
+                } catch (err) {
+                    alert('请求失败: ' + err.message);
+                }
+            });
+        }
+        
+        // 编辑功能
+        let currentEditId = null;
+        
+        function editSite(id) {
+            currentEditId = id;
+            fetch('/api/subdomains')
+                .then(r => r.json())
+                .then(data => {
+                    const site = data.data.find(s => s.id === id);
+                    if (site) {
+                        document.getElementById('editId').value = site.id;
+                        document.getElementById('editSiteName').value = site.site_name || '';
+                        document.getElementById('editSiteDescription').value = site.site_description || '';
+                        document.getElementById('editTargetDomain').value = site.target_domain || '';
+                        document.getElementById('editModal').style.display = 'flex';
+                    }
+                })
+                .catch(err => {
+                    alert('加载失败: ' + err.message);
+                });
+        }
+        
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none';
+            currentEditId = null;
+        }
+        
+        async function saveEdit() {
+            const targetDomain = document.getElementById('editTargetDomain').value.trim();
+            if (targetDomain && !targetDomain.startsWith('http://') && !targetDomain.startsWith('https://')) {
+                alert('目标域名必须以 http:// 或 https:// 开头');
+                return;
+            }
+            
+            const data = {
+                site_name: document.getElementById('editSiteName').value,
+                site_description: document.getElementById('editSiteDescription').value,
+                target_domain: targetDomain
+            };
+            
+            try {
+                const resp = await fetch(`/api/subdomains/${currentEditId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    alert('更新成功');
+                    closeModal();
+                    loadSites();
+                } else {
+                    alert('更新失败: ' + result.error);
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+            }
+        }
+        
+        async function deleteSite(id) {
+            if (!confirm('确定要删除这个子域名吗？删除后不可恢复。')) return;
+            try {
+                const resp = await fetch(`/api/subdomains/${id}`, { method: 'DELETE' });
+                const result = await resp.json();
+                if (result.success) {
+                    alert('删除成功');
+                    loadSites();
+                } else {
+                    alert('删除失败: ' + result.error);
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+            }
+        }
+        
+        // 点击弹窗外关闭
+        const editModal = document.getElementById('editModal');
+        if (editModal) {
+            editModal.addEventListener('click', (e) => {
+                if (e.target === editModal) {
+                    closeModal();
+                }
+            });
+        }
+        
+        // 页面加载时初始化
+        loadSites();
+        loadPortForwards();
+    </script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ site.site_name or site.subdomain }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        /* iframe 全屏显示目标网站 */
+        .proxy-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        /* 悬浮球容器 */
+        .float-ball {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 9999;
+            font-size: 24px;
+            user-select: none;
+            touch-action: none;
+        }
+        .float-ball:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        /* 举报弹窗 */
+        .report-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        .report-modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .report-modal h3 {
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .form-group textarea {
+            resize: vertical;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            border: none;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        /* 返回顶部悬浮球 */
+        .back-top {
+            position: fixed;
+            right: 20px;
+            bottom: 90px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 9999;
+            font-size: 20px;
+            transition: opacity 0.2s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .back-top.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .back-top:hover {
+            background: rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+    <iframe class="proxy-iframe" src="{{ site.target_domain }}" sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-top-navigation"></iframe>
+    
+    <!-- 举报悬浮球 -->
+    <div id="reportBall" class="float-ball" title="举报此网站">
+        🚩
+    </div>
+    
+    <!-- 返回顶部悬浮球 -->
+    <div id="backTop" class="back-top" title="返回顶部">
+        ↑
+    </div>
+    
+    <!-- 举报弹窗 -->
+    <div id="reportModal" class="report-modal">
+        <div class="report-modal-content">
+            <h3>🚩 举报网站</h3>
+            <div class="form-group">
+                <label>举报原因</label>
+                <select id="reportReason">
+                    <option value="">请选择</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>详细描述（可选）</label>
+                <textarea id="reportDescription" rows="3" placeholder="请详细描述违规内容..."></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="closeReportModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitReport()">提交举报</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 悬浮球拖拽功能
+        const ball = document.getElementById('reportBall');
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+        let hasMoved = false;
+        
+        // 初始位置
+        let posX = window.innerWidth - 76;  // 右侧边距20px，宽度56px
+        let posY = window.innerHeight - 76; // 底部边距20px
+        
+        ball.style.right = '20px';
+        ball.style.bottom = '20px';
+        ball.style.left = 'auto';
+        ball.style.top = 'auto';
+        
+        ball.addEventListener('mousedown', startDrag);
+        ball.addEventListener('touchstart', startDrag, { passive: false });
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchmove', onDrag, { passive: false });
+        document.addEventListener('touchend', stopDrag);
+        
+        function startDrag(e) {
+            e.preventDefault();
+            isDragging = true;
+            hasMoved = false;
+            
+            const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY ?? (e.touches && e.touches[0].clientY);
+            
+            startX = clientX;
+            startY = clientY;
+            
+            // 获取当前实际位置
+            const rect = ball.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+            
+            ball.style.cursor = 'grabbing';
+        }
+        
+        function onDrag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY ?? (e.touches && e.touches[0].clientY);
+            
+            const deltaX = clientX - startX;
+            const deltaY = clientY - startY;
+            
+            if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                hasMoved = true;
+            }
+            
+            let newLeft = startLeft + deltaX;
+            let newTop = startTop + deltaY;
+            
+            // 边界限制
+            const ballSize = 56;
+            newLeft = Math.max(0, Math.min(window.innerWidth - ballSize, newLeft));
+            newTop = Math.max(0, Math.min(window.innerHeight - ballSize, newTop));
+            
+            ball.style.right = 'auto';
+            ball.style.bottom = 'auto';
+            ball.style.left = newLeft + 'px';
+            ball.style.top = newTop + 'px';
+        }
+        
+        function stopDrag(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            ball.style.cursor = 'pointer';
+            
+            if (!hasMoved) {
+                // 如果没有移动，则打开举报弹窗
+                openReportModal();
+            }
+            hasMoved = false;
+        }
+        
+        // 返回顶部功能
+        const backTop = document.getElementById('backTop');
+        const iframe = document.querySelector('.proxy-iframe');
+        
+        // 监听 iframe 内的滚动（需要 iframe 同源，否则无法实现）
+        // 使用 postMessage 方案或简单地在 iframe 加载后尝试
+        setInterval(() => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc && iframeDoc.body) {
+                    const scrollTop = iframeDoc.documentElement.scrollTop || iframeDoc.body.scrollTop;
+                    if (scrollTop > 300) {
+                        backTop.classList.add('visible');
+                    } else {
+                        backTop.classList.remove('visible');
+                    }
+                }
+            } catch (e) {
+                // 跨域时无法获取滚动位置，使用备用方案
+                backTop.classList.add('visible');
+            }
+        }, 300);
+        
+        backTop.addEventListener('click', () => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc) {
+                    iframeDoc.documentElement.scrollTop = 0;
+                    iframeDoc.body.scrollTop = 0;
+                }
+            } catch (e) {
+                // 跨域时无法控制滚动
+                alert('无法控制目标网站的滚动（跨域限制）');
+            }
+        });
+        
+        // 举报功能
+        async function loadReasons() {
+            try {
+                const resp = await fetch('/api/report/reasons');
+                const data = await resp.json();
+                if (data.success) {
+                    const select = document.getElementById('reportReason');
+                    select.innerHTML = '<option value="">请选择</option>' + 
+                        data.data.map(r => `<option value="${r.code}">${r.name} - ${r.description}</option>`).join('');
+                }
+            } catch (err) {
+                console.error('加载举报原因失败:', err);
+            }
+        }
+        
+        function openReportModal() {
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+        
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+        }
+        
+        async function submitReport() {
+            const reason = document.getElementById('reportReason').value;
+            if (!reason) {
+                alert('请选择举报原因');
+                return;
+            }
+            const description = document.getElementById('reportDescription').value;
+            
+            try {
+                const resp = await fetch('/api/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subdomain_id: {{ site.id }},
+                        reason: reason,
+                        description: description
+                    })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    if (result.banned) {
+                        alert('举报已提交。该网站已收到3次举报，已被自动封禁处理。\n页面即将刷新...');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        alert('举报已提交，我们会尽快处理');
+                    }
+                    closeReportModal();
+                    document.getElementById('reportDescription').value = '';
+                    document.getElementById('reportReason').value = '';
+                } else {
+                    alert('举报失败: ' + (result.error || '未知错误'));
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+            }
+        }
+        
+        loadReasons();
+        
+        // 点击弹窗外关闭
+        document.getElementById('reportModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('reportModal')) {
+                closeReportModal();
+            }
+        });
+    </script>
+</body>
+</html>
