@@ -134,7 +134,7 @@ FreeHub/
 ### 克隆仓库
 
 ```bash
-git clone https://github.com/Zhou-39/website.git
+git clone https://github.com/Zhou-39/FreeHub.git
 cd FreeHub
 ```
 
